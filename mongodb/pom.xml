@@ -9,7 +9,7 @@
   
   <artifactId>mongodb-binding</artifactId>
   <name>Mongo DB Binding</name>
-  <packaging>jar</packaging>
+
 
   <dependencies>
     <dependency>
@@ -23,7 +23,7 @@
       <version>${project.version}</version>
     </dependency>
   </dependencies>
- 
+
   <build>
     <plugins>
      <plugin>

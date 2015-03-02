@@ -9,12 +9,7 @@
 
 package com.yahoo.ycsb.db;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.mongodb.BasicDBObject;
@@ -62,6 +57,21 @@ public class MongoDbClient extends DB {
      * Initialize any state for this DB.
      * Called once per DB instance; there is one DB instance per client thread.
      */
+
+    /**  provide support for sharding. */
+    private static final int [] _shardPorts = { 27018, 27019 };
+    private ArrayList<String> _shardServers;
+
+    /*public void setupClusterSharding() throws Exception {
+        // Connect to mongos
+        final Mongo mongo = new Mongo(new DBAddress("127.0.0.1", 27017, "admin"));
+        // Add the shards
+        for (final int shardPort : _shardPorts) {
+            final CommandResult result
+                    = mongo.getDB("admin").command(new BasicDBObject("addshard", ("localhost:" + shardPort)));
+            System.out.println(result);
+    }*/
+
     @Override
     public void init() throws DBException {
         initCount.incrementAndGet();
@@ -72,13 +82,10 @@ public class MongoDbClient extends DB {
 
             // initialize MongoDb driver
             Properties props = getProperties();
-            String url = props.getProperty("mongodb.url",
-                    "mongodb://localhost:27017");
+            String url = props.getProperty("mongodb.url", "mongodb://localhost:27017");
             database = props.getProperty("mongodb.database", "ycsb");
-            String writeConcernType = props.getProperty("mongodb.writeConcern",
-                    "safe").toLowerCase();
-            final String maxConnections = props.getProperty(
-                    "mongodb.maxconnections", "10");
+            String writeConcernType = props.getProperty("mongodb.writeConcern", "safe").toLowerCase();
+            final String maxConnections = props.getProperty("mongodb.maxconnections", "10");
 
             if ("none".equals(writeConcernType)) {
                 writeConcern = WriteConcern.NONE;
@@ -157,7 +164,7 @@ public class MongoDbClient extends DB {
      * @param key The record key of the record to delete.
      * @return Zero on success, a non-zero error code on error. See this class's description for a discussion of error codes.
      */
-    @Override
+
     public int delete(String table, String key) {
         com.mongodb.DB db = null;
         try {
@@ -199,10 +206,13 @@ public class MongoDbClient extends DB {
 
             DBCollection collection = db.getCollection(table);
             DBObject r = new BasicDBObject().append("_id", key);
+            System.out.println("key value :"+key);
+            System.out.println("values arr size:"+ values.size());
             for (String k : values.keySet()) {
                 r.put(k, values.get(k).toArray());
             }
             WriteResult res = collection.insert(r, writeConcern);
+
             return res.getError() == null ? 0 : 1;
         }
         catch (Exception e) {
