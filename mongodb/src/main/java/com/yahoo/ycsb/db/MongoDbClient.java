@@ -9,6 +9,7 @@
 
 package com.yahoo.ycsb.db;
 
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -25,6 +26,16 @@ import com.yahoo.ycsb.ByteArrayByteIterator;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
+
+import com.mongodb.gridfs.GridFS;
+import com.mongodb.gridfs.GridFSDBFile;
+import com.mongodb.gridfs.GridFSInputFile;
+
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+
+
 
 /**
  * MongoDB client for YCSB framework.
@@ -46,6 +57,8 @@ public class MongoDbClient extends DB {
 
     /** The default write concern for the test. */
     private static WriteConcern writeConcern;
+
+    private static String mediaclass;
 
     /** The database to access. */
     private static String database;
@@ -86,6 +99,9 @@ public class MongoDbClient extends DB {
             database = props.getProperty("mongodb.database", "ycsb");
             String writeConcernType = props.getProperty("mongodb.writeConcern", "safe").toLowerCase();
             final String maxConnections = props.getProperty("mongodb.maxconnections", "10");
+
+            mediaclass=props.getProperty("mediaclass","false");
+
 
             if ("none".equals(writeConcernType)) {
                 writeConcern = WriteConcern.NONE;
@@ -187,8 +203,13 @@ public class MongoDbClient extends DB {
     }
 
     /**
+     *
      * Insert a record in the database. Any field/value pairs in the specified values HashMap will be written into the record with the specified
      * record key.
+     *
+     * Modified for Media data
+     *
+     * Insert a image record in the database if mediaclass is true.
      *
      * @param table The name of the table
      * @param key The record key of the record to insert.
@@ -201,19 +222,44 @@ public class MongoDbClient extends DB {
         com.mongodb.DB db = null;
         try {
             db = mongo.getDB(database);
-
             db.requestStart();
-
             DBCollection collection = db.getCollection(table);
-            DBObject r = new BasicDBObject().append("_id", key);
-            System.out.println("key value :"+key);
-            System.out.println("values arr size:"+ values.size());
-            for (String k : values.keySet()) {
-                r.put(k, values.get(k).toArray());
-            }
-            WriteResult res = collection.insert(r, writeConcern);
 
-            return res.getError() == null ? 0 : 1;
+            if ("true".equals(mediaclass)) {
+                File[] listOfFiles = new File("workload-data/").listFiles();
+                //ArrayList<String> fileNames = new ArrayList<String>();
+
+                GridFS fs = new GridFS(db);
+                GridFSInputFile in=null;
+
+                Random rn = new Random();
+                int index = rn.nextInt(listOfFiles.length);
+
+                File image = listOfFiles[index];
+                if (image.exists()) {
+                    System.out.println("Image "+ image.getName() + " inserted with key " + key);
+                    in = fs.createFile(image);
+                    in.setId(key);
+                    in.save();
+
+                }
+                return 1;
+            }
+            else {
+                DBObject r = new BasicDBObject().append("_id", key);
+                System.out.println("This is other than g");
+                for (String k : values.keySet()) {
+                    r.put(k, values.get(k).toArray());
+                }
+                WriteResult res = collection.insert(r, writeConcern);
+
+                return res.getError() == null ? 0 : 1;
+            }
+
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+            return 1;
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -228,6 +274,10 @@ public class MongoDbClient extends DB {
 
     /**
      * Read a record from the database. Each field/value pair from the result will be stored in a HashMap.
+     *
+     * Modified for Media data
+     *
+     * Read a image record from the database if mediaclass is true.
      *
      * @param table The name of the table
      * @param key The record key of the record to read.
@@ -247,24 +297,40 @@ public class MongoDbClient extends DB {
 
             DBCollection collection = db.getCollection(table);
             DBObject q = new BasicDBObject().append("_id", key);
-            DBObject fieldsToReturn = new BasicDBObject();
 
-            DBObject queryResult = null;
-            if (fields != null) {
-                Iterator<String> iter = fields.iterator();
-                while (iter.hasNext()) {
-                    fieldsToReturn.put(iter.next(), INCLUDE);
-                }
-                queryResult = collection.findOne(q, fieldsToReturn);
+            System.out.println("in read function");
+
+            if ("true".equals(mediaclass)) {
+                GridFS gfsPhoto = new GridFS(db, "photo");
+                GridFSDBFile image = gfsPhoto.findOne(new BasicDBObject("_id", key));
+                System.out.println("image id is " + image.getId() + " key was : " + key);
+
+
+                if (image != null)
+                System.out.println("Image found with id " +  key + " key value : " + image.getId());
+
+                return image != null ? 0 : 1;
+
             }
             else {
-                queryResult = collection.findOne(q);
-            }
+                DBObject fieldsToReturn = new BasicDBObject();
 
-            if (queryResult != null) {
-                result.putAll(queryResult.toMap());
+                DBObject queryResult = null;
+                if (fields != null) {
+                    Iterator<String> iter = fields.iterator();
+                    while (iter.hasNext()) {
+                        fieldsToReturn.put(iter.next(), INCLUDE);
+                    }
+                    queryResult = collection.findOne(q, fieldsToReturn);
+                } else {
+                    queryResult = collection.findOne(q);
+                }
+
+                if (queryResult != null) {
+                    result.putAll(queryResult.toMap());
+                }
+                return queryResult != null ? 0 : 1;
             }
-            return queryResult != null ? 0 : 1;
         }
         catch (Exception e) {
             System.err.println(e.toString());
@@ -384,4 +450,109 @@ public class MongoDbClient extends DB {
             }
         }
     }
+
+
+    /**
+     * This is for Media data
+     *
+     * Insert a image record in the database. .
+     *
+     * @param table The name of the table
+     * @param key The record key of the record to insert.
+     * @param values image to insert in the record
+     * @return Zero on success, a non-zero error code on error. See this class's description for a discussion of error codes.
+     */
+    public void insertImage(String table, String key,
+                      HashMap<String, ByteIterator> values) {
+        com.mongodb.DB db = null;
+        try {
+            db = mongo.getDB(database);
+
+            db.requestStart();
+
+            DBCollection collection = db.getCollection(table);
+
+            File[] listOfFiles = new File("workload-data/").listFiles();
+            ArrayList<String> fileNames = new ArrayList<String>();
+
+            GridFS fs = new GridFS(db);
+
+            for (File image : listOfFiles) {
+               if(image.exists()) {
+
+                   byte[] imageBytes = LoadImage(image.getAbsolutePath());
+
+                   GridFSInputFile in = fs.createFile(imageBytes);
+                   in.setId(image.getName());
+                   in.save();
+               }
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+        finally {
+            if (db != null) {
+                db.requestDone();
+            }
+        }
+    }
+
+
+    /**
+     * This is for Media data
+     *
+     * Read a image record in the database. .
+     *
+     * @param table The name of the table
+     * @param key The record key of the record to insert.
+     * @param values image to insert in the record
+     * @return Zero on success, a non-zero error code on error. See this class's description for a discussion of error codes.
+     */
+    public void readImage(String table, String key,
+                            HashMap<String, ByteIterator> values) {
+        com.mongodb.DB db = null;
+        try {
+            db = mongo.getDB(database);
+
+            db.requestStart();
+
+            DBCollection collection = db.getCollection(table);
+
+            File[] listOfFiles = new File("workload-data/").listFiles();
+            ArrayList<String> fileNames = new ArrayList<String>();
+
+            GridFS fs = new GridFS(db);
+
+            for (File image : listOfFiles) {
+                if(image.exists()) {
+
+                    byte[] imageBytes = LoadImage(image.getAbsolutePath());
+
+                    GridFSInputFile in = fs.createFile(imageBytes);
+                    in.setId(image.getName());
+                    in.save();
+                }
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+        finally {
+            if (db != null) {
+                db.requestDone();
+            }
+        }
+    }
+
+    public byte[] LoadImage(String filePath) throws Exception {
+        File file = new File(filePath);
+        int size = (int)file.length();
+        byte[] buffer = new byte[size];
+        FileInputStream in = new FileInputStream(file);
+        in.read(buffer);
+        in.close();
+        return buffer;
+    }
+
 }

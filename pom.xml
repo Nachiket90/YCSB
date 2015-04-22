@@ -39,8 +39,9 @@
       <artifactId>slf4j-api</artifactId>
       <version>1.6.4</version>
     </dependency>
+
   </dependencies>
- 
+
   <!-- Properties Management -->
   <properties>
     <maven.assembly.version>2.2.1</maven.assembly.version>
