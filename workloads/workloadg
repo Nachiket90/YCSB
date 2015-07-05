@@ -27,12 +27,12 @@ operationcount=1000
 mediaclass=true
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
-readallfields=false
+readallfields=true
 
 readproportion=0.9
 updateproportion=0
 scanproportion=0
 insertproportion=0.1
 
-requestdistribution=uniform
+requestdistribution=zipfian
 

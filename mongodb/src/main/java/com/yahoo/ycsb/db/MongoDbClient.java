@@ -30,6 +30,7 @@ import com.yahoo.ycsb.DBException;
 import com.mongodb.gridfs.GridFS;
 import com.mongodb.gridfs.GridFSDBFile;
 import com.mongodb.gridfs.GridFSInputFile;
+import org.bson.types.ObjectId;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -85,6 +86,9 @@ public class MongoDbClient extends DB {
             System.out.println(result);
     }*/
 
+    private static File[] listOfFiles = null;
+    private static long proportionValue, proportionCount = 0;
+
     @Override
     public void init() throws DBException {
         initCount.incrementAndGet();
@@ -101,7 +105,13 @@ public class MongoDbClient extends DB {
             final String maxConnections = props.getProperty("mongodb.maxconnections", "10");
 
             mediaclass=props.getProperty("mediaclass","false");
-
+            if ("true".equals(mediaclass)) {
+                if (!(new File("workload-data/").exists())) {
+                    System.err.println("ERROR: Missing Path: 'workload-data' directory in ycsb directory");
+                    System.exit(1);
+                }
+                listOfFiles = new File("workload-data/").listFiles();
+            }
 
             if ("none".equals(writeConcernType)) {
                 writeConcern = WriteConcern.NONE;
@@ -226,24 +236,20 @@ public class MongoDbClient extends DB {
             DBCollection collection = db.getCollection(table);
 
             if ("true".equals(mediaclass)) {
-                File[] listOfFiles = new File("workload-data/").listFiles();
-                //ArrayList<String> fileNames = new ArrayList<String>();
-
-                GridFS fs = new GridFS(db);
-                GridFSInputFile in=null;
+                GridFS fs = new GridFS(db,"imageData");
+                GridFSInputFile in = null;
 
                 Random rn = new Random();
                 int index = rn.nextInt(listOfFiles.length);
 
                 File image = listOfFiles[index];
                 if (image.exists()) {
-                    System.out.println("Image "+ image.getName() + " inserted with key " + key);
                     in = fs.createFile(image);
                     in.setId(key);
+                    in.setFilename(image.getName());
                     in.save();
-
                 }
-                return 1;
+                return 0;
             }
             else {
                 DBObject r = new BasicDBObject().append("_id", key);
@@ -295,24 +301,21 @@ public class MongoDbClient extends DB {
 
             db.requestStart();
 
-            DBCollection collection = db.getCollection(table);
-            DBObject q = new BasicDBObject().append("_id", key);
-
-            System.out.println("in read function");
-
             if ("true".equals(mediaclass)) {
-                GridFS gfsPhoto = new GridFS(db, "photo");
-                GridFSDBFile image = gfsPhoto.findOne(new BasicDBObject("_id", key));
-                System.out.println("image id is " + image.getId() + " key was : " + key);
 
+                GridFS gFS = new GridFS(db,"imageData");
 
-                if (image != null)
-                System.out.println("Image found with id " +  key + " key value : " + image.getId());
+                Random rn = new Random();
+                int index = rn.nextInt(listOfFiles.length);
 
-                return image != null ? 0 : 1;
+                File image = listOfFiles[index];
+                GridFSDBFile data = gFS.findOne(image.getName());
 
+                return data != null ? 0 : 1;
             }
             else {
+                DBCollection collection = db.getCollection(table);
+                DBObject q = new BasicDBObject().append("_id", key);
                 DBObject fieldsToReturn = new BasicDBObject();
 
                 DBObject queryResult = null;
