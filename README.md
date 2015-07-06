@@ -30,7 +30,17 @@ Getting Started
     ```
 
   Running the `ycsb` command without any argument will print the usage. 
-   
+
+  This build contains new workloadg which is designed for benchmarking media data (images/videos) 
+  using YCSB. Required steps are same as above with change in workload name,
+  
+  mkdir YCSB/workload-data ----- All media data should be present in this directory.
+  
+  ```sh
+    bin/ycsb load basic -P workloads/workloadg
+    bin/ycsb run basic -P workloads/workloadg
+    ```
+  
   See https://github.com/brianfrankcooper/YCSB/wiki/Running-a-Workload
   for a detailed documentation on how to run a workload.
 
