@@ -36,7 +36,7 @@ Getting Started
   
   mkdir YCSB/workload-data ----- All media data should be present in this directory.
   
-  ```sh
+    ```sh
     bin/ycsb load basic -P workloads/workloadg
     bin/ycsb run basic -P workloads/workloadg
     ```
